@@ -9,8 +9,8 @@ Composite GitHub Action (Linux runner) for deploying repository content to remot
 - Defaults to delta file synchronization for faster deployment of only changed files since last commit
 - Mirroring feature to copy entire file and folder structure of repository content
 - Optimized for faster file transfers via parallel connections
-- Allows connecting via SOCKS proxy to bypass firewall / NAT / IP whitelist / VPC for FTP connection (via SSH tunneling)
-- Uses composite run steps without Docker container for faster deployments and shorter run time
+- Allows connecting via [SOCKS proxy](https://en.wikipedia.org/wiki/SOCKS) to bypass firewall / NAT / IP whitelist / VPC for FTP connection (via [SSH tunneling](https://www.ssh.com/academy/ssh/tunneling))
+- Uses [composite action](https://docs.github.com/en/actions/creating-actions/about-actions#types-of-actions) without Docker container for faster deployments and shorter run time
 - Allows passing additional command arguments to SSH and FTP client for custom configurations
 - Step runs messages categorized nicely in log groups
 
@@ -36,9 +36,15 @@ Composite GitHub Action (Linux runner) for deploying repository content to remot
 | remote-path           | yes                  | .       | Remote path on host                           |
 | sync                  | yes                  | delta   | File synchronization (delta, full)            |
 | ssh-options           | no                   |         | Additional arguments for SSH client           |
-| ftp-options           | no                   |         | Additional arguments for FTP client (lftp)    |
-| ftp-mirror-options    | no                   |         | Additional arguments for mirroring (lftp)     |
+| ftp-options           | no                   |         | Additional arguments for FTP client           |
+| ftp-mirror-options    | no                   |         | Additional arguments for mirroring            |
 | debug                 | no                   | false   | Enable debug information (true, false)        |
+
+### Notes
+
+- Character support for `remote-user` and `remote-password` is limited and should not contain shell special characters
+- Delta file synchronization is only supported for `push`, `pull_request` and `workflow_dispatch` [events](https://docs.github.com/en/actions/reference/events-that-trigger-workflows) and requires `fetch-depth: 0` in [checkout action](https://github.com/actions/checkout)
+- For `ftp-options` and `ftp-mirror-options` please refer to [LFTP manual](https://lftp.yar.ru/lftp-man.html)
 
 ## Usage
 
