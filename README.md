@@ -42,9 +42,11 @@ Composite GitHub Action (Linux runner) for deploying repository content to remot
 
 ### Notes
 
-- Character support for `remote-user` and `remote-password` is limited and should not contain shell special characters
-- Delta file synchronization is only supported for `push`, `pull_request` and `workflow_dispatch` [events](https://docs.github.com/en/actions/reference/events-that-trigger-workflows) and requires `fetch-depth: 0` in [checkout action](https://github.com/actions/checkout)
-- For `ftp-options` and `ftp-mirror-options` please refer to [LFTP manual](https://lftp.yar.ru/lftp-man.html)
+- Character support for `remote-user` and `remote-password` is limited due to its usage in [.netrc file](https://www.gnu.org/software/inetutils/manual/html_node/The-_002enetrc-file.html); it should not contain shell/URL special characters
+- File synchronization options
+  - `delta`: Transfer only changed files (upload and delete) since last revision; only supported for `push`, `pull_request` and `workflow_dispatch` [events](https://docs.github.com/en/actions/reference/events-that-trigger-workflows) and requires `fetch-depth: 0` in [checkout action](https://github.com/actions/checkout); it is recommended to initially do a full synchronization and then switch to delta
+  - `full`: Transfer all files (upload); does not delete files on remote host
+- For `ftp-options` and `ftp-mirror-options` command arguments please refer to [LFTP manual](https://lftp.yar.ru/lftp-man.html)
 
 ## Usage
 
@@ -68,7 +70,17 @@ Workflow example `.github/workflows/main.yml`.
 ```yml
 name: Deploy Files
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches:
+      - master
+  # Enables manually triggering of Workflow with file synchronization option
+  workflow_dispatch:
+    inputs:
+      sync:
+        description: "File synchronization"
+        required: true
+        default: "delta"
 
 jobs:
   master:
