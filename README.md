@@ -1,17 +1,19 @@
 # FTP/SFTP file deployer
 
-Composite GitHub Action (Linux runner) for deploying repository content to remote host.
+Fast and customizable deployment with proxy support. Deploy only changed files or do full sync/mirror of repository content.
+
+This is a composite GitHub Action (Linux runner) for deploying repository content to remote server.
 
 ## Features
 
 - Support for FTP and SFTP (SSH) protocols
 - Use password or SSH private key for authentication of SFTP connection
-- Defaults to delta file synchronization for faster deployment of only changed files since last commit
+- Delta file synchronization for faster deployment of only changed files since last revision
 - Mirroring feature to copy entire file and folder structure of repository content
 - Optimized for faster file transfers via parallel connections
-- Allows connecting via [SOCKS proxy](https://en.wikipedia.org/wiki/SOCKS) to bypass firewall / NAT / IP whitelist / VPC for FTP connection (via [SSH tunneling](https://www.ssh.com/academy/ssh/tunneling))
+- Connect to remote server via [SOCKS proxy](https://en.wikipedia.org/wiki/SOCKS) to bypass firewall / NAT / IP whitelist / VPC via [SSH tunneling](https://www.ssh.com/academy/ssh/tunneling)
 - Uses [composite action](https://docs.github.com/en/actions/creating-actions/about-actions#types-of-actions) without Docker container for faster deployments and shorter run time
-- Allows passing additional command arguments to SSH and FTP client for custom configurations
+- Pass additional command arguments to SSH and FTP client for custom configurations and settings
 - Step runs messages categorized nicely in log groups
 
 ![Workflow screenshot](./screenshot.png)
