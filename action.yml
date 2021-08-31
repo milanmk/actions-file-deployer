@@ -1,6 +1,6 @@
 name: 'FTP/SFTP file deployer'
 
-description: 'Fast and customizable deployment with proxy support. Deploy only changed files or do full sync/mirror of repository content.'
+description: 'Fast and customizable deployment with parallel connections and proxy support. Deploy only changed files or do full sync/mirror of repository content.'
 
 branding:
   icon: "upload"  
@@ -81,13 +81,13 @@ runs:
     - run: |
         echo "::group::Initialization"
 
+        printf '%.s_' {1..50} > ~/hr && echo "" >> ~/hr
+
         echo "Check repository"
-        if [ "$(git rev-parse --is-inside-work-tree 2> /dev/null)" != "true" ]; then
+        if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != "true" ]; then
           echo "::error::Git repository not found. Please ensure you have a checkout action step before this step."
           exit 1
         fi
-
-        printf '%.s_' {1..50} > ~/hr && echo "" >> ~/hr
 
         echo "Initialize inputs"
 
@@ -178,13 +178,13 @@ runs:
         cat ~/hr
 
         if [ "${{ inputs.remote-protocol }}" == "sftp" ] && [ "${{ inputs.ssh-private-key }}" != "" ]; then
-          key_ssh=~/ssh_private_key_file
+          key_ssh=~/ssh_private_key
           echo "${{ inputs.ssh-private-key }}" > ${key_ssh} && chmod 600 ${key_ssh} && echo "File created: ${key_ssh}" && cat ~/hr
         fi
 
         if [ "${{ env.input_proxy }}" == "true" ]; then
           if [ "${{ inputs.proxy-private-key }}" != "" ]; then
-            key_proxy=~/proxy_private_key_file
+            key_proxy=~/proxy_private_key
             echo "${{ inputs.proxy-private-key }}" > ${key_proxy} && chmod 600 ${key_proxy} && echo "File created: ${key_proxy}" && cat ~/hr
 
             config_proxychains=~/.proxychains/proxychains.conf
@@ -209,7 +209,7 @@ runs:
         set log:file/xfer ~/.transfer_log
         set log:show-time/xfer false
         set mirror:overwrite true
-        set mirror:parallel-transfer-count 5
+        set mirror:parallel-transfer-count 3
         set mirror:set-permissions false
         set net:max-retries 1
         set net:persist-retries 0
@@ -217,9 +217,10 @@ runs:
         set sftp:auto-confirm true
         set ssl:check-hostname false
         set ssl:verify-certificate false
+        set xfer:parallel 3
         ${{ inputs.ftp-options }}" > ~/.lftprc
         if [ "${{ inputs.remote-protocol }}" == "sftp" ] && [ "${{ inputs.ssh-private-key }}" != "" ]; then
-          echo "set sftp:connect-program /usr/bin/ssh -a -x -i ~/ssh_private_key_file ${{ inputs.ssh-options }}" >> ~/.lftprc
+          echo "set sftp:connect-program /usr/bin/ssh -a -x -i ~/ssh_private_key ${{ inputs.ssh-options }}" >> ~/.lftprc
         else
           echo "set sftp:connect-program /usr/bin/ssh -a -x ${{ inputs.ssh-options }}" >> ~/.lftprc
         fi
@@ -236,9 +237,12 @@ runs:
           echo "::group::Setup proxy"
 
           if [ "${{ inputs.proxy-user }}" != "" ] && [ "${{ inputs.proxy-host }}" != "" ]; then
-            ssh -A -D "${{ inputs.proxy-forwarding-port }}" -f -N -p "${{ inputs.proxy-port }}" -i ~/proxy_private_key_file "${{ inputs.proxy-user }}"@"${{ inputs.proxy-host }}" && echo "Proxy connected" && cat ~/hr
-
-            echo "Proxy IP address: $(${{ env.proxy_cmd }} curl --max-time 10 --show-error --silent "http://checkip.amazonaws.com/")"
+            if ssh -A -D ${{ inputs.proxy-forwarding-port }} -f -N -p ${{ inputs.proxy-port }} -i ~/proxy_private_key ${{ inputs.proxy-user }}@${{ inputs.proxy-host }}; then
+              echo "Proxy connected" && cat ~/hr && echo "Proxy IP address: $(${{ env.proxy_cmd }} curl --max-time 10 --show-error --silent "http://checkip.amazonaws.com/")"
+            else
+              echo "::error::Proxy connection failed."
+              exit 1
+            fi
           else
             echo "input_proxy=false" >> "${GITHUB_ENV}"
             echo "::warning::Invalid input 'proxy-user', 'proxy-host'. Skipping proxy connection."
@@ -253,7 +257,7 @@ runs:
         if [ "${{ env.input_sync }}" == "delta" ]; then
           echo "::group::Prepare files"
 
-          touch ~/files-upload ~/files-delete
+          touch ~/files_to_upload ~/files_to_delete
           echo "${{ github.sha }}" > .deploy-revision
           git_depth=$(git rev-list --count --all)
           git_previous_commit=""
@@ -270,7 +274,7 @@ runs:
               exit 1
             fi
           else
-            echo "::error::Commit history not found for delta synchronization. Please ensure you have 'fetch-depth: 0' in checkout action."
+            echo "::error::Commit history not found for delta synchronization. Please ensure you have 'fetch-depth: 0' option in checkout action. Please ignore if this is an initial commit or newly created branch."
             exit 1
           fi
 
@@ -280,8 +284,12 @@ runs:
           # echo -n "Remote Revision: " && [ -f ~/.deploy-revision ] && cat ~/.deploy-revision || echo ""
           # cat ~/hr
 
-          git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{ github.sha }} | grep --ignore-case --invert-match "^\.git.*" > ~/files-upload && echo "File created: ~/files-upload" && cat ~/files-upload && cat ~/hr
-          git diff --name-only --diff-filter=D ${git_previous_commit}..${{ github.sha }} | grep --ignore-case --invert-match "^\.git.*" > ~/files-delete && echo "File created: ~/files-delete" && cat ~/files-delete && cat ~/hr
+          if git cat-file -t ${git_previous_commit} &>/dev/null; then
+            git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{ github.sha }} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_upload && echo "File created: ~/files_to_upload" && cat ~/files_to_upload && cat ~/hr
+            git diff --name-only --diff-filter=D ${git_previous_commit}..${{ github.sha }} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_delete && echo "File created: ~/files_to_delete" && cat ~/files_to_delete && cat ~/hr
+          else
+            echo "::warning::Invalid base commit for delta synchronization: ${git_previous_commit}. Please ignore if this is an initial commit or newly created branch."
+          fi
 
           echo "::endgroup::"
         fi
@@ -296,14 +304,7 @@ runs:
         Local path: ${{ inputs.local-path }}
         Remote path: ${{ env.remote_path_unslash }}"
 
-        if [ "${{ env.input_sync }}" == "delta" ]; then
-          files_upload=$(wc --lines < ~/files-upload)
-          files_delete=$(wc --lines < ~/files-delete)
-          files_total=$((files_upload + files_delete))
-          [ "${files_total}" -ge 10 ] && echo "set xfer:parallel 5" >> ~/.lftprc
-
-          echo -e "Upload files: ${files_upload}\nDelete files: ${files_delete}"
-        fi
+        [ "${{ env.input_sync }}" == "delta" ] && echo -e "Upload files: $(wc --lines < ~/files_to_upload)\nDelete files: $(wc --lines < ~/files_to_delete)"
 
         cat ~/hr
 
@@ -315,8 +316,8 @@ runs:
             rm -f \"${{ env.remote_path_slash }}.deploy-running\""
         else
           ${{ env.proxy_cmd }} lftp -c "put -O \"${{ env.remote_path_unslash }}\" .deploy-running
-            mput -c -d -O \"${{ env.remote_path_unslash }}\" .deploy-revision $(awk 'ORS=" " { print "\"" $0 "\"" }' ~/files-upload)
-            rm -f \"${{ env.remote_path_slash }}.deploy-check\" $(awk 'ORS=" " { print "\"${{ env.remote_path_slash }}" $0 "\"" }' ~/files-delete)
+            mput -c -d -O \"${{ env.remote_path_unslash }}\" .deploy-revision $(awk 'ORS=" " { print "\"" $0 "\"" }' ~/files_to_upload)
+            rm -f \"${{ env.remote_path_slash }}.deploy-check\" $(awk 'ORS=" " { print "\"${{ env.remote_path_slash }}" $0 "\"" }' ~/files_to_delete)
             rm -f \"${{ env.remote_path_slash }}.deploy-running\""
         fi
 
@@ -329,11 +330,9 @@ runs:
     - run: |
         echo "::group::Cleanup"
 
-        if [ "${{ env.input_proxy }}" == "true" ]; then
-          sudo pkill ssh
-        fi
+        [ "${{ env.input_proxy }}" == "true" ] && sudo pkill ssh
 
-        rm --force --verbose ~/.netrc ~/proxy_private_key_file ~/ssh_private_key_file
+        rm --force --verbose ~/.netrc ~/proxy_private_key ~/ssh_private_key
 
         echo "::endgroup::"
 
