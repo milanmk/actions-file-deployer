@@ -1,6 +1,6 @@
-name: 'FTP/SFTP file deployer'
+name: "FTP/SFTP file deployer"
 
-description: 'Fast and customizable deployment with parallel connections and proxy support. Deploy only changed files or do full sync/mirror of repository content.'
+description: "Fast and customizable deployment with parallel connections and proxy support. Deploy only changed files or do full sync."
 
 branding:
   icon: "upload"  
