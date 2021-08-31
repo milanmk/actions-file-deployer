@@ -93,28 +93,28 @@ runs:
 
         remote_path_unslash=$(realpath --canonicalize-missing ${{ inputs.remote-path }})
         remote_path_slash="${remote_path_unslash}/"
-        echo "remote_path_unslash=${remote_path_unslash}" >> ${GITHUB_ENV}
-        echo "remote_path_slash=${remote_path_slash}" >> ${GITHUB_ENV}
+        echo "remote_path_unslash=${remote_path_unslash}" >> "${GITHUB_ENV}"
+        echo "remote_path_slash=${remote_path_slash}" >> "${GITHUB_ENV}"
 
         if [ "${{ inputs.remote-password }}" != "" ]; then
-          echo "input_remote_password=${{ inputs.remote-password }}" >> ${GITHUB_ENV}
+          echo "input_remote_password=${{ inputs.remote-password }}" >> "${GITHUB_ENV}"
         else
-          echo "input_remote_password=dummypassword" >> ${GITHUB_ENV}
+          echo "input_remote_password=dummypassword" >> "${GITHUB_ENV}"
         fi
 
-        echo "input_proxy=${{ inputs.proxy }}" >> ${GITHUB_ENV}
+        echo "input_proxy=${{ inputs.proxy }}" >> "${GITHUB_ENV}"
 
         if [ "${{ inputs.proxy }}" == "true" ]; then
-          echo "proxy_cmd=proxychains" >> ${GITHUB_ENV}
+          echo "proxy_cmd=proxychains" >> "${GITHUB_ENV}"
         else
-          echo "proxy_cmd=" >> ${GITHUB_ENV}
+          echo "proxy_cmd=" >> "${GITHUB_ENV}"
         fi
 
         input_sync=${{ inputs.sync }}
         if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
           input_sync=${{ github.event.inputs.sync }}
         fi
-        echo "input_sync=${input_sync}" >> ${GITHUB_ENV}
+        echo "input_sync=${input_sync}" >> "${GITHUB_ENV}"
 
         echo "Validate inputs"
 
@@ -167,6 +167,16 @@ runs:
     - run: |
         echo "::group::Configurations"
 
+        config_ssh=~/.ssh/config
+        mkdir ~/.ssh && echo -e "ExitOnForwardFailure=yes\nStrictHostKeyChecking=no" > ${config_ssh} && chmod 600 ${config_ssh} && echo "File created: ${config_ssh}"
+        [ "${{ inputs.debug }}" == "true" ] && cat ${config_ssh}
+        cat ~/hr
+
+        netrc=~/.netrc
+        echo "machine ${{ inputs.remote-host }} login ${{ inputs.remote-user }} password ${{ env.input_remote_password }}" > ${netrc} && chmod 600 ${netrc} && echo "File created: ${netrc}"
+        [ "${{ inputs.debug }}" == "true" ] && cat ${netrc}
+        cat ~/hr
+
         if [ "${{ inputs.remote-protocol }}" == "sftp" ] && [ "${{ inputs.ssh-private-key }}" != "" ]; then
           key_ssh=~/ssh_private_key_file
           echo "${{ inputs.ssh-private-key }}" > ${key_ssh} && chmod 600 ${key_ssh} && echo "File created: ${key_ssh}" && cat ~/hr
@@ -187,20 +197,10 @@ runs:
             [ "${{ inputs.debug }}" == "true" ] && cat ${config_proxychains}
             cat ~/hr
           else
-            echo "input_proxy=false" >> ${GITHUB_ENV}
+            echo "input_proxy=false" >> "${GITHUB_ENV}"
             echo "::warning::Invalid input 'proxy-private-key'. Skipping proxy connection."
           fi
         fi
-
-        config_ssh=~/.ssh/config
-        mkdir ~/.ssh && echo -e "ExitOnForwardFailure=yes\nStrictHostKeyChecking=no" > ${config_ssh} && chmod 600 ${config_ssh} && echo "File created: ${config_ssh}"
-        [ "${{ inputs.debug }}" == "true" ] && cat ${config_ssh}
-        cat ~/hr
-
-        netrc=~/.netrc
-        echo "machine ${{ inputs.remote-host }} login ${{ inputs.remote-user }} password ${{ env.input_remote_password }}" > ${netrc} && chmod 600 ${netrc} && echo "File created: ${netrc}"
-        [ "${{ inputs.debug }}" == "true" ] && cat ${netrc}
-        cat ~/hr
 
         echo "debug $([ "${{ inputs.debug }}" == "true" ] && echo "9" || echo "false")
         set ftp:ssl-protect-data true
@@ -215,8 +215,8 @@ runs:
         set net:persist-retries 0
         set net:timeout 10
         set sftp:auto-confirm true
+        set ssl:check-hostname false
         set ssl:verify-certificate false
-        set xfer:parallel 5
         ${{ inputs.ftp-options }}" > ~/.lftprc
         if [ "${{ inputs.remote-protocol }}" == "sftp" ] && [ "${{ inputs.ssh-private-key }}" != "" ]; then
           echo "set sftp:connect-program /usr/bin/ssh -a -x -i ~/ssh_private_key_file ${{ inputs.ssh-options }}" >> ~/.lftprc
@@ -236,11 +236,11 @@ runs:
           echo "::group::Setup proxy"
 
           if [ "${{ inputs.proxy-user }}" != "" ] && [ "${{ inputs.proxy-host }}" != "" ]; then
-            ssh -A -D "${{ inputs.proxy-forwarding-port }}" -f -N -p "${{ inputs.proxy-port }}" -i ~/proxy_private_key_file "${{ inputs.proxy-user }}"@"${{ inputs.proxy-host }}" && echo "Proxy connected"
+            ssh -A -D "${{ inputs.proxy-forwarding-port }}" -f -N -p "${{ inputs.proxy-port }}" -i ~/proxy_private_key_file "${{ inputs.proxy-user }}"@"${{ inputs.proxy-host }}" && echo "Proxy connected" && cat ~/hr
 
             echo "Proxy IP address: $(${{ env.proxy_cmd }} curl --max-time 10 --show-error --silent "http://checkip.amazonaws.com/")"
           else
-            echo "input_proxy=false" >> ${GITHUB_ENV}
+            echo "input_proxy=false" >> "${GITHUB_ENV}"
             echo "::warning::Invalid input 'proxy-user', 'proxy-host'. Skipping proxy connection."
           fi
 
@@ -254,11 +254,11 @@ runs:
           echo "::group::Prepare files"
 
           touch ~/files-upload ~/files-delete
-          echo ${{ github.sha }} > .deploy-revision
+          echo "${{ github.sha }}" > .deploy-revision
           git_depth=$(git rev-list --count --all)
           git_previous_commit=""
 
-          if [ "${git_depth}" > 1 ]; then
+          if [ "${git_depth}" -gt 1 ]; then
             if [ "${{ github.event_name }}" == "push" ]; then
               git_previous_commit=${{ github.event.before }}
             elif [ "${{ github.event_name }}" == "pull_request" ]; then
@@ -297,7 +297,12 @@ runs:
         Remote path: ${{ env.remote_path_unslash }}"
 
         if [ "${{ env.input_sync }}" == "delta" ]; then
-          echo -e "Upload files: $(grep -c ^ ~/files-upload)\nDelete files: $(grep -c ^ ~/files-delete)"
+          files_upload=$(wc --lines < ~/files-upload)
+          files_delete=$(wc --lines < ~/files-delete)
+          files_total=$((files_upload + files_delete))
+          [ "${files_total}" -ge 10 ] && echo "set xfer:parallel 5" >> ~/.lftprc
+
+          echo -e "Upload files: ${files_upload}\nDelete files: ${files_delete}"
         fi
 
         cat ~/hr

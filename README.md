@@ -11,7 +11,7 @@ This is a composite GitHub Action (Linux runner) for deploying repository conten
 - Delta file synchronization for faster deployment of only changed files since last revision
 - Mirroring feature to copy entire file and folder structure of repository content
 - Optimized for faster file transfers via parallel connections
-- Connect to remote server via [SOCKS proxy](https://en.wikipedia.org/wiki/SOCKS) to bypass firewall / NAT / IP whitelist / VPC via [SSH tunneling](https://www.ssh.com/academy/ssh/tunneling)
+- Connect to remote server via [SOCKS proxy](https://en.wikipedia.org/wiki/SOCKS) using [SSH tunneling](https://www.ssh.com/academy/ssh/tunneling) to bypass firewall / NAT / IP whitelist / VPC
 - Uses [composite action](https://docs.github.com/en/actions/creating-actions/about-actions#types-of-actions) without Docker container for faster deployments and shorter run time
 - Pass additional command arguments to SSH and FTP client for custom configurations and settings
 - Step runs messages categorized nicely in log groups
@@ -44,11 +44,19 @@ This is a composite GitHub Action (Linux runner) for deploying repository conten
 
 ### Notes
 
-- Character support for `remote-user` and `remote-password` is limited due to its usage in [.netrc file](https://www.gnu.org/software/inetutils/manual/html_node/The-_002enetrc-file.html); it should not contain shell/URL special characters
+- Character support for `remote-user` and `remote-password` is limited due to its usage in [.netrc file](https://www.gnu.org/software/inetutils/manual/html_node/The-_002enetrc-file.html)
+  - Should not contain shell/URL special characters
 - File synchronization options
-  - `delta`: Transfer only changed files (upload and delete) since last revision; only supported for `push`, `pull_request` and `workflow_dispatch` [events](https://docs.github.com/en/actions/reference/events-that-trigger-workflows) and requires `fetch-depth: 0` in [checkout action](https://github.com/actions/checkout); it is recommended to initially do a full synchronization and then switch to delta
-  - `full`: Transfer all files (upload); does not delete files on remote host
+  - `delta`: Transfer only changed files (upload and delete) since last revision
+    - Only supported for `push`, `pull_request` and `workflow_dispatch` [events](https://docs.github.com/en/actions/reference/events-that-trigger-workflows)
+    - Requires `fetch-depth: 0` option in [checkout action](https://github.com/actions/checkout)
+    - Parallel connections are enabled when transferring more than 10 files
+    - It is recommended to initially do a full synchronization and then switch to delta
+  - `full`: Transfer all files (upload)
+    - Does not delete files on remote host
+    - Default glob exclude pattern is `.git*/`
 - For `ftp-options` and `ftp-mirror-options` command arguments please refer to [LFTP manual](https://lftp.yar.ru/lftp-man.html)
+- Enabling `debug` option will output useful context, inputs, configuration file contents and transfer logs to help debug each step
 
 ## Usage
 
