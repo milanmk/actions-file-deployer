@@ -85,13 +85,13 @@ runs:
 
         echo "Check repository"
         if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != "true" ]; then
-          echo "::error::Git repository not found. Please ensure you have a checkout action step before this step."
+          echo "::error::Git repository not found. Please ensure you have a checkout step before this step."
           exit 1
         fi
 
         echo "Initialize inputs"
 
-        remote_path_unslash=$(realpath --canonicalize-missing ${{ inputs.remote-path }})
+        remote_path_unslash=$(realpath --canonicalize-missing '${{ inputs.remote-path }}')
         remote_path_slash="${remote_path_unslash}/"
         echo "remote_path_unslash=${remote_path_unslash}" >> "${GITHUB_ENV}"
         echo "remote_path_slash=${remote_path_slash}" >> "${GITHUB_ENV}"
@@ -136,7 +136,7 @@ runs:
         if [ "${{ inputs.debug }}" == "true" ]; then
           echo "::group::Debug"
 
-          echo "Context: github" && echo "${{ toJSON(github) }}" && cat ~/hr
+          echo "Context: github.event" && cat ${{ github.event_path }} && cat ~/hr
           
           echo "Context: env" && echo "${{ toJSON(env) }}" && cat ~/hr
           
@@ -254,11 +254,17 @@ runs:
         exit 0
       shell: bash
     - run: |
-        if [ "${{ env.input_sync }}" == "delta" ]; then
-          echo "::group::Prepare files"
+        echo "::group::Prepare files"
 
+        echo "Event: ${{ github.event_name }}
+        Revision: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+        Committer: ${{ github.actor }}
+        Message: ${{ github.event.head_commit.message }}" && cat ~/hr
+
+        echo "${{ github.sha }}" > .deploy-revision && echo "File created: .deploy-revision" && cat .deploy-revision && cat ~/hr
+
+        if [ "${{ env.input_sync }}" == "delta" ]; then
           touch ~/files_to_upload ~/files_to_delete
-          echo "${{ github.sha }}" > .deploy-revision
           git_depth=$(git rev-list --count --all)
           git_previous_commit=""
 
@@ -278,7 +284,7 @@ runs:
             exit 1
           fi
 
-          echo -e "Event: ${{ github.event_name }}\nRevision: https://github.com/${{ github.repository }}/commit/${{ github.sha }}\nCommitter: ${{ github.actor }}\nMessage: ${{ github.event.head_commit.message }}\nPrevious Revision: https://github.com/${{ github.repository }}/commit/${git_previous_commit}" && cat ~/hr
+          echo "Previous Revision: https://github.com/${{ github.repository }}/commit/${git_previous_commit}" && cat ~/hr
 
           # ${{ env.proxy_cmd }} lftp -c "set log:enabled/xfer false; get -O ~ \"${{ env.remote_path_slash }}.deploy-revision\"; exit 0"
           # echo -n "Remote Revision: " && [ -f ~/.deploy-revision ] && cat ~/.deploy-revision || echo ""
@@ -290,9 +296,9 @@ runs:
           else
             echo "::warning::Invalid base commit for delta synchronization: ${git_previous_commit}. Please ignore if this is an initial commit or newly created branch."
           fi
-
-          echo "::endgroup::"
         fi
+
+        echo "::endgroup::"
 
         exit 0
       shell: bash
