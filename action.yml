@@ -70,6 +70,10 @@ inputs:
   ftp-mirror-options:
     description: "Additional command arguments for mirroring (lftp)"
     required: false
+  artifacts:
+    description: "Upload logs to artifacts"
+    required: false
+    default: false
   debug:
     description: "Enable debug information (true, false)"
     required: false
@@ -78,7 +82,9 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - run: |
+    - name: "Initialization"
+      shell: bash
+      run: |
         echo "::group::Initialization"
 
         printf '%.s_' {1..50} > ~/hr && echo "" >> ~/hr
@@ -131,8 +137,9 @@ runs:
         echo "::endgroup::"
 
         exit 0
+    - name: "Debug"
       shell: bash
-    - run: |
+      run: |
         if [ "${{ inputs.debug }}" == "true" ]; then
           echo "::group::Debug"
 
@@ -146,8 +153,9 @@ runs:
         fi
 
         exit 0
+    - name: "Install packages"
       shell: bash
-    - run: |
+      run: |
         echo "::group::Install packages"
 
         apt_install=""
@@ -163,8 +171,9 @@ runs:
         echo "::endgroup::"
 
         exit 0
+    - name: "Configurations"
       shell: bash
-    - run: |
+      run: |
         echo "::group::Configurations"
 
         config_ssh=~/.ssh/config
@@ -206,7 +215,7 @@ runs:
         set ftp:ssl-protect-data true
         set ftp:sync-mode false
         set log:enabled/xfer true
-        set log:file/xfer ~/.transfer_log
+        set log:file/xfer ~/transfer_log.txt
         set log:show-time/xfer false
         set mirror:overwrite true
         set mirror:parallel-transfer-count 3
@@ -231,8 +240,9 @@ runs:
         echo "::endgroup::"
 
         exit 0
+    - name: "Setup proxy"
       shell: bash
-    - run: |
+      run: |
         if [ "${{ env.input_proxy }}" == "true" ]; then
           echo "::group::Setup proxy"
 
@@ -252,8 +262,9 @@ runs:
         fi
 
         exit 0
+    - name: "Prepare files"
       shell: bash
-    - run: |
+      run: |
         echo "::group::Prepare files"
 
         echo "Event: ${{ github.event_name }}
@@ -301,8 +312,9 @@ runs:
         echo "::endgroup::"
 
         exit 0
+    - name: "Transfer files"
       shell: bash
-    - run: |
+      run: |
         echo "::group::Transfer files"
 
         echo "Protocol: ${{ inputs.remote-protocol }}
@@ -327,20 +339,28 @@ runs:
             rm -f \"${{ env.remote_path_slash }}.deploy-running\""
         fi
 
-        [ -f ~/.transfer_log ] && cat ~/.transfer_log
+        [ -f ~/transfer_log.txt ] && cat ~/transfer_log.txt
 
         echo "::endgroup::"
 
         exit 0
+    - name: "Cleanup"
       shell: bash
-    - run: |
+      run: |
         echo "::group::Cleanup"
 
         [ "${{ env.input_proxy }}" == "true" ] && sudo pkill ssh
 
         rm --force --verbose ~/.netrc ~/proxy_private_key ~/ssh_private_key
 
+        [ "${{ inputs.artifacts }}" != "true" ] && rm --force --verbose ~/transfer_log.txt
+
         echo "::endgroup::"
 
         exit 0
-      shell: bash
+    - name: "Upload artifacts"
+      uses: actions/upload-artifact@v2
+      with:
+        name: "transfer_log"
+        path: '~/transfer_log.txt'
+        if-no-files-found: ignore

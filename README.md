@@ -95,6 +95,7 @@ jobs:
 | ssh-options           | no                   |         | Additional arguments for SSH client           |
 | ftp-options           | no                   |         | Additional arguments for FTP client           |
 | ftp-mirror-options    | no                   |         | Additional arguments for mirroring            |
+| artifacts             | no                   | false   | Upload logs to artifacts (true, false)        |
 | debug                 | no                   | false   | Enable debug information (true, false)        |
 
 ### Notes
@@ -110,4 +111,12 @@ jobs:
     - Does not delete files on remote host
     - Default glob exclude pattern is `.git*/`
 - For `ftp-options` and `ftp-mirror-options` command arguments please refer to [LFTP manual](https://lftp.yar.ru/lftp-man.html)
+- Enabling `artifacts` will upload transfer log to artifacts
 - Enabling `debug` option will output useful context, inputs, configuration file contents and transfer logs to help debug each step
+
+## Planned features
+
+- [x] Add transfer log to artifacts
+- [ ] Add steps logging to file
+- [ ] Add steps log to artifacts
+- [ ] Trigger webhook at start and end of step runs
