@@ -21,17 +21,17 @@ This is a composite GitHub Action (Linux runner) for deploying repository conten
 ## Usage
 
 ```yml
-- name: Checkout
+- name: "Checkout"
   uses: actions/checkout@v2
   with:
     fetch-depth: 0
-- name: Deploy
+- name: "Deploy"
   uses: milanmk/actions-file-deployer@master
   with:
     remote-protocol: "sftp"
-    remote-host: ${{ secrets.DEPLOY_PROD_HOST }}
-    remote-user: ${{ secrets.DEPLOY_PROD_USER }}
-    ssh-private-key: ${{ secrets.DEPLOY_PROD_PRIVATE_KEY }}
+    remote-host: "ftp.example.com"
+    remote-user: "username"
+    ssh-private-key: ${{ secrets.DEPLOY_PRIVATE_KEY }}
     remote-path: "/var/www/example.com"
 ```
 
@@ -53,23 +53,23 @@ on:
         default: "delta"
 
 jobs:
-  master:
-    name: master
+  deploy-master:
+    name: "master branch"
     if: ${{ github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: "Checkout"
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - name: Deploy
+      - name: "Deploy"
         uses: milanmk/actions-file-deployer@master
         with:
           remote-protocol: "sftp"
-          remote-host: ${{ secrets.DEPLOY_PROD_HOST }}
-          remote-port: 22
-          remote-user: ${{ secrets.DEPLOY_PROD_USER }}
-          ssh-private-key: ${{ secrets.DEPLOY_PROD_PRIVATE_KEY }}
+          remote-host: "ftp.example.com"
+          remote-user: "username"
+          ssh-private-key: ${{ secrets.DEPLOY_PRIVATE_KEY }}
           remote-path: "/var/www/example.com"
 ```
 
@@ -95,6 +95,7 @@ jobs:
 | ssh-options           | no                   |         | Additional arguments for SSH client           |
 | ftp-options           | no                   |         | Additional arguments for FTP client           |
 | ftp-mirror-options    | no                   |         | Additional arguments for mirroring            |
+| webhook               | no                   |         | Send webhook event notifications              |
 | artifacts             | no                   | false   | Upload logs to artifacts (true, false)        |
 | debug                 | no                   | false   | Enable debug information (true, false)        |
 
@@ -111,12 +112,46 @@ jobs:
     - Does not delete files on remote host
     - Default glob exclude pattern is `.git*/`
 - For `ftp-options` and `ftp-mirror-options` command arguments please refer to [LFTP manual](https://lftp.yar.ru/lftp-man.html)
+- Setting `webhook` to a URL will send start and finish event notifications in JSON format
+  - start event payload:
+  ```
+  {
+    "timestamp": "1234567890",
+    "status": "start",
+    "repository": "owner/repository",
+    "workflow": "workflow name",
+    "job": "deploy",
+    "run_id": "1234567890",
+    "ref": "refs/heads/master",
+    "event_name": "push",
+    "actor": "username",
+    "message": "commit message",
+    "revision": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+  }
+  ```
+  - finish event payload:
+  ```
+  {
+    "timestamp": "1234567890",
+    "status": "finish",
+    "repository": "owner/repository",
+    "workflow": "workflow name",
+    "job": "deploy",
+    "run_id": "1234567890",
+    "ref": "refs/heads/master",
+    "event_name": "push",
+    "actor": "username",
+    "message": "commit message",
+    "revision": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+  }
+  ```
 - Enabling `artifacts` will upload transfer log to artifacts
 - Enabling `debug` option will output useful context, inputs, configuration file contents and transfer logs to help debug each step
+- It is strongly recommended to use [Encrypted Secrets](https://docs.github.com/en/actions/reference/encrypted-secrets) to store sensitive data like passwords and private keys
 
 ## Planned features
 
 - [x] Add transfer log to artifacts
 - [ ] Add steps logging to file
 - [ ] Add steps log to artifacts
-- [ ] Trigger webhook at start and end of step runs
+- [x] Trigger webhook at start and end of step runs

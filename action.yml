@@ -70,26 +70,51 @@ inputs:
   ftp-mirror-options:
     description: "Additional command arguments for mirroring (lftp)"
     required: false
+  webhook:
+    description: "Send webhook event notifications"
+    required: false
   artifacts:
     description: "Upload logs to artifacts"
     required: false
-    default: false
   debug:
     description: "Enable debug information (true, false)"
     required: false
-    default: false
 
 runs:
   using: "composite"
   steps:
-    - name: "Initialization"
+    - name: "Deploy"
       shell: bash
       run: |
         echo "::group::Initialization"
 
-        printf '%.s_' {1..50} > ~/hr && echo "" >> ~/hr
+        function show_hr() {
+          printf '%.s_' {1..100} && echo ""
+        }
+
+        function send_webhook() {
+          local status="$1"
+          local post_data=$(jq --null-input \
+          --arg timestamp `date +%s` \
+          --arg status "${status}" \
+          --arg repository "${{ github.repository }}" \
+          --arg workflow "${{ github.workflow }}" \
+          --arg job "${{ github.job }}" \
+          --arg run_id "${{ github.run_id }}" \
+          --arg ref "${{ github.ref }}" \
+          --arg event_name "${{ github.event_name }}" \
+          --arg actor "${{ github.actor }}" \
+          --arg message "${{ github.event.head_commit.message }}" \
+          --arg revision "${{ github.sha }}" \
+          '{"timestamp": $timestamp, "status": $status, "repository": $repository, "workflow": $workflow, "job": $job, "run_id": $run_id, "ref": $ref, "event_name": $event_name, "actor": $actor, "message": $message, "revision": $revision}')
+
+          curl --data "${post_data}" --header "Content-Type: application/json" --max-time 30 --show-error --silent --user-agent "GitHub Workflow" "${{inputs.webhook}}"
+        }
+
+        [ "${{inputs.webhook}}" != "" ] && echo "Webhook notification (start): $(send_webhook "start")"
 
         echo "Check repository"
+
         if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != "true" ]; then
           echo "::error::Git repository not found. Please ensure you have a checkout step before this step."
           exit 1
@@ -97,104 +122,91 @@ runs:
 
         echo "Initialize inputs"
 
-        remote_path_unslash=$(realpath --canonicalize-missing '${{ inputs.remote-path }}')
+        remote_path_unslash=$(realpath --canonicalize-missing '${{inputs.remote-path}}')
         remote_path_slash="${remote_path_unslash}/"
-        echo "remote_path_unslash=${remote_path_unslash}" >> "${GITHUB_ENV}"
-        echo "remote_path_slash=${remote_path_slash}" >> "${GITHUB_ENV}"
 
-        if [ "${{ inputs.remote-password }}" != "" ]; then
-          echo "input_remote_password=${{ inputs.remote-password }}" >> "${GITHUB_ENV}"
-        else
-          echo "input_remote_password=dummypassword" >> "${GITHUB_ENV}"
+        input_remote_password="${{inputs.remote-password}}"
+        if [ "${{inputs.remote-password}}" == "" ]; then
+          input_remote_password="dummypassword"
         fi
 
-        echo "input_proxy=${{ inputs.proxy }}" >> "${GITHUB_ENV}"
+        input_proxy="${{inputs.proxy}}"
 
-        if [ "${{ inputs.proxy }}" == "true" ]; then
-          echo "proxy_cmd=proxychains" >> "${GITHUB_ENV}"
-        else
-          echo "proxy_cmd=" >> "${GITHUB_ENV}"
+        proxy_cmd=""
+        if [ "${input_proxy}" == "true" ]; then
+          proxy_cmd="proxychains"
         fi
 
-        input_sync=${{ inputs.sync }}
-        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-          input_sync=${{ github.event.inputs.sync }}
+        input_sync=${{inputs.sync}}
+        if [ "${{github.event_name}}" == "workflow_dispatch" ]; then
+          input_sync=${{github.event.inputs.sync}}
         fi
-        echo "input_sync=${input_sync}" >> "${GITHUB_ENV}"
 
         echo "Validate inputs"
 
-        if [ "${{ inputs.remote-protocol }}" != "sftp" ] && [ "${{ inputs.remote-protocol }}" != "ftp" ]; then
-          echo "::error::Invalid protocol: ${{ inputs.remote-protocol }}. Supported protocols are 'ftp' and 'sftp'."
+        if [ "${{inputs.remote-protocol}}" != "sftp" ] && [ "${{inputs.remote-protocol}}" != "ftp" ]; then
+          echo "::error::Invalid protocol: ${{inputs.remote-protocol}}. Valid protocols are 'ftp' and 'sftp'."
           exit 1
         fi
 
         if [ "${input_sync}" != "delta" ] && [ "${input_sync}" != "full" ]; then
-          echo "::error::Invalid synchronization: ${input_sync}. Supported types are 'delta' and 'full'."
+          echo "::error::Invalid synchronization: ${input_sync}. Valid types are 'delta' and 'full'."
           exit 1
         fi
 
         echo "::endgroup::"
 
-        exit 0
-    - name: "Debug"
-      shell: bash
-      run: |
-        if [ "${{ inputs.debug }}" == "true" ]; then
+
+
+        if [ "${{inputs.debug}}" == "true" ]; then
           echo "::group::Debug"
 
-          echo "Context: github.event" && cat ${{ github.event_path }} && cat ~/hr
+          echo "Context: github.event" && cat ${{github.event_path}} && show_hr
           
-          echo "Context: env" && echo "${{ toJSON(env) }}" && cat ~/hr
+          echo "Context: env" && echo "${{toJSON(env)}}" && show_hr
           
-          echo "Inputs:" && echo "${{ toJSON(inputs) }}"
+          echo "Inputs:" && echo "${{toJSON(inputs)}}"
 
           echo "::endgroup::"
         fi
 
-        exit 0
-    - name: "Install packages"
-      shell: bash
-      run: |
+
+
         echo "::group::Install packages"
 
         apt_install=""
         apt_quiet="--quiet --quiet"
-        if [ "${{ inputs.debug }}" == "true" ]; then
+        if [ "${{inputs.debug}}" == "true" ]; then
           apt_quiet=""
         fi
-        if [ "${{ env.input_proxy }}" == "true" ]; then
-          apt_install="${{ env.proxy_cmd }}"
-        fi
-        sudo apt-get ${apt_quiet} update && sudo apt-get ${apt_quiet} --no-install-recommends --yes install lftp ${apt_install}
+
+        sudo apt-get ${apt_quiet} update && sudo apt-get ${apt_quiet} --no-install-recommends --yes install lftp ${proxy_cmd}
 
         echo "::endgroup::"
 
-        exit 0
-    - name: "Configurations"
-      shell: bash
-      run: |
+
+
         echo "::group::Configurations"
 
         config_ssh=~/.ssh/config
         mkdir ~/.ssh && echo -e "ExitOnForwardFailure=yes\nStrictHostKeyChecking=no" > ${config_ssh} && chmod 600 ${config_ssh} && echo "File created: ${config_ssh}"
-        [ "${{ inputs.debug }}" == "true" ] && cat ${config_ssh}
-        cat ~/hr
+        [ "${{inputs.debug}}" == "true" ] && cat ${config_ssh}
+        show_hr
 
         netrc=~/.netrc
-        echo "machine ${{ inputs.remote-host }} login ${{ inputs.remote-user }} password ${{ env.input_remote_password }}" > ${netrc} && chmod 600 ${netrc} && echo "File created: ${netrc}"
-        [ "${{ inputs.debug }}" == "true" ] && cat ${netrc}
-        cat ~/hr
+        echo "machine ${{inputs.remote-host}} login ${{inputs.remote-user}} password ${input_remote_password}" > ${netrc} && chmod 600 ${netrc} && echo "File created: ${netrc}"
+        [ "${{inputs.debug}}" == "true" ] && cat ${netrc}
+        show_hr
 
-        if [ "${{ inputs.remote-protocol }}" == "sftp" ] && [ "${{ inputs.ssh-private-key }}" != "" ]; then
+        if [ "${{inputs.remote-protocol}}" == "sftp" ] && [ "${{inputs.ssh-private-key}}" != "" ]; then
           key_ssh=~/ssh_private_key
-          echo "${{ inputs.ssh-private-key }}" > ${key_ssh} && chmod 600 ${key_ssh} && echo "File created: ${key_ssh}" && cat ~/hr
+          echo "${{inputs.ssh-private-key}}" > ${key_ssh} && chmod 600 ${key_ssh} && echo "File created: ${key_ssh}" && show_hr
         fi
 
-        if [ "${{ env.input_proxy }}" == "true" ]; then
-          if [ "${{ inputs.proxy-private-key }}" != "" ]; then
+        if [ "${input_proxy}" == "true" ]; then
+          if [ "${{inputs.proxy-private-key}}" != "" ]; then
             key_proxy=~/proxy_private_key
-            echo "${{ inputs.proxy-private-key }}" > ${key_proxy} && chmod 600 ${key_proxy} && echo "File created: ${key_proxy}" && cat ~/hr
+            echo "${{inputs.proxy-private-key}}" > ${key_proxy} && chmod 600 ${key_proxy} && echo "File created: ${key_proxy}" && show_hr
 
             config_proxychains=~/.proxychains/proxychains.conf
             mkdir ~/.proxychains && echo "strict_chain
@@ -202,16 +214,16 @@ runs:
             tcp_read_time_out 15000
             tcp_connect_time_out 10000
             [ProxyList]
-            socks5 127.0.0.1 ${{ inputs.proxy-forwarding-port }}" > ${config_proxychains} && echo "File created: ${config_proxychains}"
-            [ "${{ inputs.debug }}" == "true" ] && cat ${config_proxychains}
-            cat ~/hr
+            socks5 127.0.0.1 ${{inputs.proxy-forwarding-port}}" > ${config_proxychains} && echo "File created: ${config_proxychains}"
+            [ "${{inputs.debug}}" == "true" ] && cat ${config_proxychains}
+            show_hr
           else
-            echo "input_proxy=false" >> "${GITHUB_ENV}"
+            input_proxy="false"
             echo "::warning::Invalid input 'proxy-private-key'. Skipping proxy connection."
           fi
         fi
 
-        echo "debug $([ "${{ inputs.debug }}" == "true" ] && echo "9" || echo "false")
+        echo "debug $([ "${{inputs.debug}}" == "true" ] && echo "9" || echo "false")
         set ftp:ssl-protect-data true
         set ftp:sync-mode false
         set log:enabled/xfer true
@@ -227,67 +239,63 @@ runs:
         set ssl:check-hostname false
         set ssl:verify-certificate false
         set xfer:parallel 3
-        ${{ inputs.ftp-options }}" > ~/.lftprc
-        if [ "${{ inputs.remote-protocol }}" == "sftp" ] && [ "${{ inputs.ssh-private-key }}" != "" ]; then
-          echo "set sftp:connect-program /usr/bin/ssh -a -x -i ~/ssh_private_key ${{ inputs.ssh-options }}" >> ~/.lftprc
+        ${{inputs.ftp-options}}" > ~/.lftprc
+        if [ "${{inputs.remote-protocol}}" == "sftp" ] && [ "${{inputs.ssh-private-key}}" != "" ]; then
+          echo "set sftp:connect-program /usr/bin/ssh -a -x -i ~/ssh_private_key ${{inputs.ssh-options}}" >> ~/.lftprc
         else
-          echo "set sftp:connect-program /usr/bin/ssh -a -x ${{ inputs.ssh-options }}" >> ~/.lftprc
+          echo "set sftp:connect-program /usr/bin/ssh -a -x ${{inputs.ssh-options}}" >> ~/.lftprc
         fi
-        echo "open ${{ inputs.remote-protocol }}://${{ inputs.remote-user }}@${{ inputs.remote-host }}:${{ inputs.remote-port }}" >> ~/.lftprc
+        echo "open ${{inputs.remote-protocol}}://${{inputs.remote-user}}@${{inputs.remote-host}}:${{inputs.remote-port}}" >> ~/.lftprc
         echo "File created: ~/.lftprc"
-        [ "${{ inputs.debug }}" == "true" ] && cat ~/.lftprc
+        [ "${{inputs.debug}}" == "true" ] && cat ~/.lftprc
 
         echo "::endgroup::"
 
-        exit 0
-    - name: "Setup proxy"
-      shell: bash
-      run: |
-        if [ "${{ env.input_proxy }}" == "true" ]; then
+
+
+        if [ "${input_proxy}" == "true" ]; then
           echo "::group::Setup proxy"
 
-          if [ "${{ inputs.proxy-user }}" != "" ] && [ "${{ inputs.proxy-host }}" != "" ]; then
-            if ssh -A -D ${{ inputs.proxy-forwarding-port }} -f -N -p ${{ inputs.proxy-port }} -i ~/proxy_private_key ${{ inputs.proxy-user }}@${{ inputs.proxy-host }}; then
-              echo "Proxy connected" && cat ~/hr && echo "Proxy IP address: $(${{ env.proxy_cmd }} curl --max-time 10 --show-error --silent "http://checkip.amazonaws.com/")"
+          if [ "${{inputs.proxy-user}}" != "" ] && [ "${{inputs.proxy-host}}" != "" ]; then
+            if ssh -A -D ${{inputs.proxy-forwarding-port}} -f -N -p ${{inputs.proxy-port}} -i ~/proxy_private_key ${{inputs.proxy-user}}@${{inputs.proxy-host}}; then
+              echo "Proxy connected" && show_hr && echo "Proxy IP address: $(${proxy_cmd} curl --max-time 10 --show-error --silent "http://checkip.amazonaws.com/")"
             else
               echo "::error::Proxy connection failed."
               exit 1
             fi
           else
-            echo "input_proxy=false" >> "${GITHUB_ENV}"
+            input_proxy="false"
             echo "::warning::Invalid input 'proxy-user', 'proxy-host'. Skipping proxy connection."
           fi
 
           echo "::endgroup::"
         fi
 
-        exit 0
-    - name: "Prepare files"
-      shell: bash
-      run: |
+
+
         echo "::group::Prepare files"
 
-        echo "Event: ${{ github.event_name }}
-        Revision: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
-        Committer: ${{ github.actor }}
-        Message: ${{ github.event.head_commit.message }}" && cat ~/hr
+        echo "Event: ${{github.event_name}}
+        Revision: https://github.com/${{github.repository}}/commit/${{github.sha}}
+        Committer: ${{github.actor}}
+        Message: ${{github.event.head_commit.message}}" && show_hr
 
-        echo "${{ github.sha }}" > .deploy-revision && echo "File created: .deploy-revision" && cat .deploy-revision && cat ~/hr
+        echo "${{github.sha}}" > .deploy-revision && echo "File created: .deploy-revision" && cat .deploy-revision && show_hr
 
-        if [ "${{ env.input_sync }}" == "delta" ]; then
+        if [ "${input_sync}" == "delta" ]; then
           touch ~/files_to_upload ~/files_to_delete
           git_depth=$(git rev-list --count --all)
           git_previous_commit=""
 
           if [ "${git_depth}" -gt 1 ]; then
-            if [ "${{ github.event_name }}" == "push" ]; then
-              git_previous_commit=${{ github.event.before }}
-            elif [ "${{ github.event_name }}" == "pull_request" ]; then
-              git_previous_commit=${{ github.event.pull_request.base.sha }}
-            elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-              git_previous_commit=$(git rev-parse ${{ github.sha }}^)
+            if [ "${{github.event_name}}" == "push" ]; then
+              git_previous_commit=${{github.event.before}}
+            elif [ "${{github.event_name}}" == "pull_request" ]; then
+              git_previous_commit=${{github.event.pull_request.base.sha}}
+            elif [ "${{github.event_name}}" == "workflow_dispatch" ]; then
+              git_previous_commit=$(git rev-parse ${{github.sha}}^)
             else
-              echo "::error::Event not supported for delta synchronization: ${{ github.event_name }}. Supported events are 'push', 'pull_request' and 'workflow_dispatch'."
+              echo "::error::Event not supported for delta synchronization: ${{github.event_name}}. Supported events are 'push', 'pull_request' and 'workflow_dispatch'."
               exit 1
             fi
           else
@@ -295,15 +303,15 @@ runs:
             exit 1
           fi
 
-          echo "Previous Revision: https://github.com/${{ github.repository }}/commit/${git_previous_commit}" && cat ~/hr
+          echo "Previous Revision: https://github.com/${{github.repository}}/commit/${git_previous_commit}" && show_hr
 
-          # ${{ env.proxy_cmd }} lftp -c "set log:enabled/xfer false; get -O ~ \"${{ env.remote_path_slash }}.deploy-revision\"; exit 0"
+          # ${proxy_cmd} lftp -c "set log:enabled/xfer false; get -O ~ \"${remote_path_slash}.deploy-revision\"; exit 0"
           # echo -n "Remote Revision: " && [ -f ~/.deploy-revision ] && cat ~/.deploy-revision || echo ""
-          # cat ~/hr
+          # show_hr
 
           if git cat-file -t ${git_previous_commit} &>/dev/null; then
-            git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{ github.sha }} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_upload && echo "File created: ~/files_to_upload" && cat ~/files_to_upload && cat ~/hr
-            git diff --name-only --diff-filter=D ${git_previous_commit}..${{ github.sha }} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_delete && echo "File created: ~/files_to_delete" && cat ~/files_to_delete && cat ~/hr
+            git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{github.sha}} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_upload && echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
+            git diff --name-only --diff-filter=D ${git_previous_commit}..${{github.sha}} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_delete && echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
           else
             echo "::warning::Invalid base commit for delta synchronization: ${git_previous_commit}. Please ignore if this is an initial commit or newly created branch."
           fi
@@ -311,49 +319,47 @@ runs:
 
         echo "::endgroup::"
 
-        exit 0
-    - name: "Transfer files"
-      shell: bash
-      run: |
+
+
         echo "::group::Transfer files"
 
-        echo "Protocol: ${{ inputs.remote-protocol }}
-        Synchronization: ${{ env.input_sync }}
-        Local path: ${{ inputs.local-path }}
-        Remote path: ${{ env.remote_path_unslash }}"
+        echo "Protocol: ${{inputs.remote-protocol}}
+        Synchronization: ${input_sync}
+        Local path: ${{inputs.local-path}}
+        Remote path: ${remote_path_unslash}"
 
-        [ "${{ env.input_sync }}" == "delta" ] && echo -e "Upload files: $(wc --lines < ~/files_to_upload)\nDelete files: $(wc --lines < ~/files_to_delete)"
+        [ "${input_sync}" == "delta" ] && echo -e "Upload files: $(wc --lines < ~/files_to_upload)\nDelete files: $(wc --lines < ~/files_to_delete)"
 
-        cat ~/hr
+        show_hr
 
         touch .deploy-running
 
-        if [ "${{ env.input_sync }}" == "full" ]; then
-          ${{ env.proxy_cmd }} lftp -c "put -O \"${{ env.remote_path_unslash }}\" .deploy-running
-            mirror --exclude-glob=.git*/ --max-errors=10 --reverse ${{ inputs.ftp-mirror-options }} ${{ inputs.local-path }} ${{ env.remote_path_unslash }}
-            rm -f \"${{ env.remote_path_slash }}.deploy-running\""
+        if [ "${input_sync}" == "full" ]; then
+          ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
+            mirror --exclude-glob=.git*/ --max-errors=10 --reverse ${{inputs.ftp-mirror-options}} ${{inputs.local-path}} ${remote_path_unslash}
+            rm -f \"${remote_path_slash}.deploy-running\""
         else
-          ${{ env.proxy_cmd }} lftp -c "put -O \"${{ env.remote_path_unslash }}\" .deploy-running
-            mput -c -d -O \"${{ env.remote_path_unslash }}\" .deploy-revision $(awk 'ORS=" " { print "\"" $0 "\"" }' ~/files_to_upload)
-            rm -f \"${{ env.remote_path_slash }}.deploy-check\" $(awk 'ORS=" " { print "\"${{ env.remote_path_slash }}" $0 "\"" }' ~/files_to_delete)
-            rm -f \"${{ env.remote_path_slash }}.deploy-running\""
+          ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
+            mput -c -d -O \"${remote_path_unslash}\" .deploy-revision $(awk 'ORS=" " { print "\"" $0 "\"" }' ~/files_to_upload)
+            rm -f \"${remote_path_slash}.deploy-check\" $(awk 'ORS=" " { print "\"${remote_path_slash}" $0 "\"" }' ~/files_to_delete)
+            rm -f \"${remote_path_slash}.deploy-running\""
         fi
 
         [ -f ~/transfer_log.txt ] && cat ~/transfer_log.txt
 
         echo "::endgroup::"
 
-        exit 0
-    - name: "Cleanup"
-      shell: bash
-      run: |
+
+
         echo "::group::Cleanup"
 
-        [ "${{ env.input_proxy }}" == "true" ] && sudo pkill ssh
+        [ "${input_proxy}" == "true" ] && sudo pkill ssh
 
         rm --force --verbose ~/.netrc ~/proxy_private_key ~/ssh_private_key
 
-        [ "${{ inputs.artifacts }}" != "true" ] && rm --force --verbose ~/transfer_log.txt
+        [ "${{inputs.artifacts}}" != "true" ] && rm --force --verbose ~/transfer_log.txt
+
+        [ "${{inputs.webhook}}" != "" ] && echo "Webhook notification (finish): $(send_webhook "finish")"
 
         echo "::endgroup::"
 
