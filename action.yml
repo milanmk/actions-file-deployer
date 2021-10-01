@@ -312,6 +312,10 @@ runs:
           if git cat-file -t ${git_previous_commit} &>/dev/null; then
             git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{github.sha}} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_upload && echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
             git diff --name-only --diff-filter=D ${git_previous_commit}..${{github.sha}} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_delete && echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
+
+            if [ "${{inputs.artifacts}}" == "true" ]; then
+              echo "Copy transfer artifacts" && mkdir ~/transfer_files && rsync --verbose --files-from=$HOME/files_to_upload . ~/transfer_files/
+            fi
           else
             echo "::warning::Invalid base commit for delta synchronization: ${git_previous_commit}. Please ignore if this is an initial commit or newly created branch."
           fi
@@ -340,7 +344,7 @@ runs:
             rm -f \"${remote_path_slash}.deploy-running\""
         else
           ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
-            mput -c -d -O \"${remote_path_unslash}\" .deploy-revision $(awk 'ORS=" " { print "\"" $0 "\"" }' ~/files_to_upload)
+            mput -d -O \"${remote_path_unslash}\" .deploy-revision $(awk 'ORS=" " { print "\"" $0 "\"" }' ~/files_to_upload)
             rm -f \"${remote_path_slash}.deploy-check\" $(awk 'ORS=" " { print "\"${remote_path_slash}" $0 "\"" }' ~/files_to_delete)
             rm -f \"${remote_path_slash}.deploy-running\""
         fi
@@ -367,6 +371,8 @@ runs:
     - name: "Upload artifacts"
       uses: actions/upload-artifact@v2
       with:
-        name: "transfer_log"
-        path: '~/transfer_log.txt'
+        name: "transfer_artifacts"
+        path: |
+          ~/transfer_log.txt
+          ~/transfer_files
         if-no-files-found: ignore

@@ -96,7 +96,7 @@ jobs:
 | ftp-options           | no                   |         | Additional arguments for FTP client           |
 | ftp-mirror-options    | no                   |         | Additional arguments for mirroring            |
 | webhook               | no                   |         | Send webhook event notifications              |
-| artifacts             | no                   | false   | Upload logs to artifacts (true, false)        |
+| artifacts             | no                   | false   | Upload logs/files to artifacts (true, false)  |
 | debug                 | no                   | false   | Enable debug information (true, false)        |
 
 ### Notes
@@ -145,13 +145,15 @@ jobs:
     "revision": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
   }
   ```
-- Enabling `artifacts` will upload transfer log to artifacts
+- Enabling `artifacts` will upload transfer log and modified files to artifacts
+  - Modified files are only added for delta file synchronization
 - Enabling `debug` option will output useful context, inputs, configuration file contents and transfer logs to help debug each step
 - It is strongly recommended to use [Encrypted Secrets](https://docs.github.com/en/actions/reference/encrypted-secrets) to store sensitive data like passwords and private keys
 
 ## Planned features
 
 - [x] Add transfer log to artifacts
+- [x] Add modified files to artifacts
 - [ ] Add steps logging to file
 - [ ] Add steps log to artifacts
 - [x] Trigger webhook at start and end of step runs
