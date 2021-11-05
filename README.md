@@ -15,6 +15,7 @@ This is a composite GitHub Action (Linux runner) for deploying repository conten
 - Uses [composite action](https://docs.github.com/en/actions/creating-actions/about-actions#types-of-actions) without Docker container for faster deployments and shorter run time
 - Pass additional command arguments to SSH and FTP client for custom configurations and settings
 - Step runs messages categorized nicely in log groups
+- Post FTP commands after synchronization
 
 ![Workflow screenshot](./screenshot.png)
 
@@ -75,29 +76,30 @@ jobs:
 
 ## Inputs
 
-| Name                  | Required             | Default | Description                                   |
-|-----------------------|----------------------|---------|-----------------------------------------------|
-| remote-protocol       | yes                  | sftp    | Remote file transfer protocol (ftp, sftp)     |
-| remote-host           | yes                  |         | Remote host                                   |
-| remote-port           | yes                  | 22      | Remote port                                   |
-| remote-user           | yes                  |         | FTP/SSH username                              |
-| remote-password       | no                   |         | FTP/SSH password                              |
-| ssh-private-key       | no                   |         | SSH private key of user                       |
-| proxy                 | yes                  | false   | Enable proxy for FTP connection (true, false) |
-| proxy-host            | yes (if proxy: true) |         | Proxy host                                    |
-| proxy-port            | yes (if proxy: true) | 22      | Proxy port                                    |
-| proxy-forwarding-port | yes (if proxy: true) | 1080    | Proxy forwarding port                         |
-| proxy-user            | yes (if proxy: true) |         | Proxy username                                |
-| proxy-private-key     | yes (if proxy: true) |         | Proxy SSH private key of user                 |
-| local-path            | yes                  | .       | Local path to repository                      |
-| remote-path           | yes                  | .       | Remote path on host                           |
-| sync                  | yes                  | delta   | File synchronization (delta, full)            |
-| ssh-options           | no                   |         | Additional arguments for SSH client           |
-| ftp-options           | no                   |         | Additional arguments for FTP client           |
-| ftp-mirror-options    | no                   |         | Additional arguments for mirroring            |
-| webhook               | no                   |         | Send webhook event notifications              |
-| artifacts             | no                   | false   | Upload logs/files to artifacts (true, false)  |
-| debug                 | no                   | false   | Enable debug information (true, false)        |
+| Name                   | Required             | Default | Description                                   |
+|------------------------|----------------------|---------|-----------------------------------------------|
+| remote-protocol        | yes                  | sftp    | Remote file transfer protocol (ftp, sftp)     |
+| remote-host            | yes                  |         | Remote host                                   |
+| remote-port            | yes                  | 22      | Remote port                                   |
+| remote-user            | yes                  |         | FTP/SSH username                              |
+| remote-password        | no                   |         | FTP/SSH password                              |
+| ssh-private-key        | no                   |         | SSH private key of user                       |
+| proxy                  | yes                  | false   | Enable proxy for FTP connection (true, false) |
+| proxy-host             | yes (if proxy: true) |         | Proxy host                                    |
+| proxy-port             | yes (if proxy: true) | 22      | Proxy port                                    |
+| proxy-forwarding-port  | yes (if proxy: true) | 1080    | Proxy forwarding port                         |
+| proxy-user             | yes (if proxy: true) |         | Proxy username                                |
+| proxy-private-key      | yes (if proxy: true) |         | Proxy SSH private key of user                 |
+| local-path             | yes                  | .       | Local path to repository                      |
+| remote-path            | yes                  | .       | Remote path on host                           |
+| sync                   | yes                  | delta   | File synchronization (delta, full)            |
+| ssh-options            | no                   |         | Additional arguments for SSH client           |
+| ftp-options            | no                   |         | Additional arguments for FTP client           |
+| ftp-mirror-options     | no                   |         | Additional arguments for mirroring            |
+| ftp-post-sync-commands | no                   | false   | Additionnal FTP command to run after sync     |
+| webhook                | no                   |         | Send webhook event notifications              |
+| artifacts              | no                   | false   | Upload logs/files to artifacts (true, false)  |
+| debug                  | no                   |         | Enable debug information (true, false)        |
 
 ### Notes
 

@@ -70,6 +70,9 @@ inputs:
   ftp-mirror-options:
     description: "Additional command arguments for mirroring (lftp)"
     required: false
+  ftp-post-sync-commands:
+    description: "Additional ftp commands to run after synchronization (lftp)"
+    required: false
   webhook:
     description: "Send webhook event notifications"
     required: false
@@ -162,9 +165,9 @@ runs:
           echo "::group::Debug"
 
           echo "Context: github.event" && cat ${{github.event_path}} && show_hr
-          
+
           echo "Context: env" && echo "${{toJSON(env)}}" && show_hr
-          
+
           echo "Inputs:" && echo "${{toJSON(inputs)}}"
 
           echo "::endgroup::"
@@ -341,12 +344,14 @@ runs:
         if [ "${input_sync}" == "full" ]; then
           ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
             mirror --exclude-glob=.git*/ --max-errors=10 --reverse ${{inputs.ftp-mirror-options}} ${{inputs.local-path}} ${remote_path_unslash}
-            rm -f \"${remote_path_slash}.deploy-running\""
+            rm -f \"${remote_path_slash}.deploy-running\"
+            ${{inputs.ftp-post-sync-commands}}"
         else
           ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
             mput -d -O \"${remote_path_unslash}\" .deploy-revision $(awk 'ORS=" " { print "\"" $0 "\"" }' ~/files_to_upload)
             rm -f \"${remote_path_slash}.deploy-check\" $(awk 'ORS=" " { print "\"${remote_path_slash}" $0 "\"" }' ~/files_to_delete)
-            rm -f \"${remote_path_slash}.deploy-running\""
+            rm -f \"${remote_path_slash}.deploy-running\"
+            ${{inputs.ftp-post-sync-commands}}"
         fi
 
         [ -f ~/transfer_log.txt ] && cat ~/transfer_log.txt
