@@ -15,7 +15,7 @@ This is a composite GitHub Action (Linux runner) for deploying repository conten
 - Uses [composite action](https://docs.github.com/en/actions/creating-actions/about-actions#types-of-actions) without Docker container for faster deployments and shorter run time
 - Pass additional command arguments to SSH and FTP client for custom configurations and settings
 - Step runs messages categorized nicely in log groups
-- Post FTP commands after synchronization
+- Run additional FTP commands after synchronization
 
 ![Workflow screenshot](./screenshot.png)
 
@@ -96,10 +96,10 @@ jobs:
 | ssh-options            | no                   |         | Additional arguments for SSH client           |
 | ftp-options            | no                   |         | Additional arguments for FTP client           |
 | ftp-mirror-options     | no                   |         | Additional arguments for mirroring            |
-| ftp-post-sync-commands | no                   | false   | Additionnal FTP command to run after sync     |
+| ftp-post-sync-commands | no                   |         | Additionnal FTP command to run after sync     |
 | webhook                | no                   |         | Send webhook event notifications              |
 | artifacts              | no                   | false   | Upload logs/files to artifacts (true, false)  |
-| debug                  | no                   |         | Enable debug information (true, false)        |
+| debug                  | no                   | false   | Enable debug information (true, false)        |
 
 ### Notes
 
@@ -114,6 +114,14 @@ jobs:
     - Does not delete files on remote host
     - Default glob exclude pattern is `.git*/`
 - For `ftp-options` and `ftp-mirror-options` command arguments please refer to [LFTP manual](https://lftp.yar.ru/lftp-man.html)
+- `ftp-post-sync-commands` can be used to run additional LFTP commands after the
+    synchronization. For example, to upload a file watched by a process manager
+    on the server in order to restart a deamon:
+    ```
+    ftp-post-sync-commands: |
+      !touch watched_file
+      put watched_file
+    ```
 - Setting `webhook` to a URL will send start and finish event notifications in JSON format
   - start event payload:
   ```
