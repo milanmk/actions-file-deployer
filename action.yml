@@ -346,9 +346,9 @@ runs:
 
         if [ "${input_sync}" == "full" ]; then
           if [ "${{inputs.delete-existing}}" == "true" ]; then
-            ${proxy_cmd} lftp -c "rm -rf \"${remote_path_slash}\"
+            ${proxy_cmd} lftp -c "rm -rf \"${remote_path_slash}\""
           fi
-          
+
           ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
             mirror --exclude-glob=.git*/ --max-errors=10 --reverse ${{inputs.ftp-mirror-options}} ${{inputs.local-path}} ${remote_path_unslash}
             rm -f \"${remote_path_slash}.deploy-running\"
