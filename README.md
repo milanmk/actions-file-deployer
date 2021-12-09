@@ -99,6 +99,7 @@ jobs:
 | ftp-post-sync-commands | no                   |         | Additionnal FTP command to run after sync     |
 | webhook                | no                   |         | Send webhook event notifications              |
 | artifacts              | no                   | false   | Upload logs/files to artifacts (true, false)  |
+| delete-existing        | no                   | false   | Delete all existing files                     |
 | debug                  | no                   | false   | Enable debug information (true, false)        |
 
 ### Notes
