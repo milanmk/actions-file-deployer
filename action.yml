@@ -343,7 +343,7 @@ runs:
 
         if [ "${input_sync}" == "full" ]; then
           ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
-            mirror --exclude-glob=.git*/ --max-errors=10 --reverse ${{inputs.ftp-mirror-options}} ${{inputs.local-path}} ${remote_path_unslash}
+            mirror --exclude-glob=.git*/ --max-errors=10 --reverse --delete ${{inputs.ftp-mirror-options}} ${{inputs.local-path}} ${remote_path_unslash}
             rm -f \"${remote_path_slash}.deploy-running\"
             ${{inputs.ftp-post-sync-commands}}"
         else
