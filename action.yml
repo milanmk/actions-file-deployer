@@ -313,8 +313,8 @@ runs:
           # show_hr
 
           if git cat-file -t ${git_previous_commit} &>/dev/null; then
-            git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{github.sha}} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_upload && echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
-            git diff --name-only --diff-filter=D ${git_previous_commit}..${{github.sha}} | grep --ignore-case --invert-match "^\.git.*" > ~/files_to_delete && echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
+            git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{github.sha}} ':!/.git*' > ~/files_to_upload && echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
+            git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} ':!/.git*' > ~/files_to_delete && echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
 
             if [ "${{inputs.artifacts}}" == "true" ]; then
               echo "Copy transfer artifacts" && mkdir ~/transfer_files && rsync --verbose --files-from=$HOME/files_to_upload . ~/transfer_files/
@@ -349,7 +349,7 @@ runs:
         else
           ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
             mput -d -O \"${remote_path_unslash}\" .deploy-revision $(awk 'ORS=" " { print "\"" $0 "\"" }' ~/files_to_upload)
-            rm -f \"${remote_path_slash}.deploy-check\" $(awk 'ORS=" " { print "\"${remote_path_slash}" $0 "\"" }' ~/files_to_delete)
+            rm -f \"${remote_path_slash}.deploy-check\" $(awk -v REMOTEPATH=\"${remote_path_slash}\" 'ORS=" " { print "\"" REMOTEPATH $0 "\"" }' ~/files_to_delete)
             rm -f \"${remote_path_slash}.deploy-running\"
             ${{inputs.ftp-post-sync-commands}}"
         fi
