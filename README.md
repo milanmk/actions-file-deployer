@@ -23,7 +23,7 @@ This is a composite GitHub Action (Linux runner) for deploying repository conten
 
 ```yml
 - name: "Checkout"
-  uses: actions/checkout@v2
+  uses: actions/checkout@v3
   with:
     fetch-depth: 0
 - name: "Deploy"
@@ -61,7 +61,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: "Deploy"
@@ -93,6 +93,7 @@ jobs:
 | local-path             | yes                  | .       | Local path to repository                      |
 | remote-path            | yes                  | .       | Remote path on host                           |
 | sync                   | yes                  | delta   | File synchronization (delta, full)            |
+| sync-delta-excludes    | no                   |         | Files to exclude from delta sync              |
 | ssh-options            | no                   |         | Additional arguments for SSH client           |
 | ftp-options            | no                   |         | Additional arguments for FTP client           |
 | ftp-mirror-options     | no                   |         | Additional arguments for mirroring            |
@@ -113,10 +114,9 @@ jobs:
   - `full`: Transfer all files (upload)
     - Does not delete files on remote host
     - Default glob exclude pattern is `.git*/`
+- `sync-delta-excludes` accepts [pathspec](https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddefpathspecapathspec) patterns to exclude files from delta sync.
 - For `ftp-options` and `ftp-mirror-options` command arguments please refer to [LFTP manual](https://lftp.yar.ru/lftp-man.html)
-- `ftp-post-sync-commands` can be used to run additional LFTP commands after the
-    synchronization. For example, to upload a file watched by a process manager
-    on the server in order to restart a deamon:
+- `ftp-post-sync-commands` can be used to run additional LFTP commands after the synchronization. For example, to upload a file watched by a process manager on the server in order to restart a deamon:
     ```
     ftp-post-sync-commands: |
       !touch watched_file

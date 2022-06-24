@@ -61,6 +61,9 @@ inputs:
     description: "File synchronization (delta, full)"
     required: true
     default: "delta"
+  sync-delta-excludes:
+    description: "Files to exclude from delta sync"
+    required: false
   ssh-options:
     description: "Additional command arguments for SSH client"
     required: false
@@ -313,8 +316,8 @@ runs:
           # show_hr
 
           if git cat-file -t ${git_previous_commit} &>/dev/null; then
-            git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{github.sha}} ':!/.git*' > ~/files_to_upload && echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
-            git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} ':!/.git*' > ~/files_to_delete && echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
+            git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{github.sha}} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload && echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
+            git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_delete && echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
 
             if [ "${{inputs.artifacts}}" == "true" ]; then
               echo "Copy transfer artifacts" && mkdir ~/transfer_files && rsync --verbose --files-from=$HOME/files_to_upload . ~/transfer_files/
