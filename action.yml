@@ -377,7 +377,7 @@ runs:
 
         exit 0
     - name: "Upload artifacts"
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: "transfer_artifacts"
         path: |
