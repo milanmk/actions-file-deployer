@@ -128,6 +128,9 @@ runs:
 
         echo "Initialize inputs"
 
+        local_path_unslash=$(echo "${{inputs.local-path}}" | sed 's:/*$::')
+        local_path_slash="${local_path_unslash}/"
+
         remote_path_unslash=$(realpath --canonicalize-missing '${{inputs.remote-path}}')
         remote_path_slash="${remote_path_unslash}/"
 
@@ -230,6 +233,7 @@ runs:
         fi
 
         echo "debug $([ "${{inputs.debug}}" == "true" ] && echo "9" || echo "false")
+        set cmd:trace $([ "${{inputs.debug}}" == "true" ] && echo "true" || echo "false")
         set ftp:ssl-protect-data true
         set ftp:sync-mode false
         set log:enabled/xfer true
@@ -286,7 +290,7 @@ runs:
         Committer: ${{github.actor}}
         Message: ${{github.event.head_commit.message}}" && show_hr
 
-        echo "${{github.sha}}" > .deploy-revision && echo "File created: .deploy-revision" && cat .deploy-revision && show_hr
+        echo "${{github.sha}}" > "${local_path_slash}.deploy-revision" && echo "File created: ${local_path_slash}.deploy-revision" && cat "${local_path_slash}.deploy-revision" && show_hr
 
         if [ "${input_sync}" == "delta" ]; then
           touch ~/files_to_upload ~/files_to_delete
@@ -316,11 +320,17 @@ runs:
           # show_hr
 
           if git cat-file -t ${git_previous_commit} &>/dev/null; then
-            git diff --name-only --diff-filter=ACMRT ${git_previous_commit}..${{github.sha}} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload && echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
-            git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_delete && echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
+            git diff --diff-filter=ACMRT --name-only ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload
+            git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_delete
+
+            sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_upload
+            sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_delete
+
+            echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
+            echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
 
             if [ "${{inputs.artifacts}}" == "true" ]; then
-              echo "Copy transfer artifacts" && mkdir ~/transfer_files && rsync --verbose --files-from=$HOME/files_to_upload . ~/transfer_files/
+              echo "Copy transfer artifacts" && mkdir ~/transfer_files && rsync --verbose --files-from=$HOME/files_to_upload ${local_path_slash} ~/transfer_files/
             fi
           else
             echo "::warning::Invalid base commit for delta synchronization: ${git_previous_commit}. Please ignore if this is an initial commit or newly created branch."
@@ -335,25 +345,26 @@ runs:
 
         echo "Protocol: ${{inputs.remote-protocol}}
         Synchronization: ${input_sync}
-        Local path: ${{inputs.local-path}}
+        Local path: ${local_path_unslash}
         Remote path: ${remote_path_unslash}"
 
         [ "${input_sync}" == "delta" ] && echo -e "Upload files: $(wc --lines < ~/files_to_upload)\nDelete files: $(wc --lines < ~/files_to_delete)"
 
         show_hr
 
-        touch .deploy-running
+        touch "${local_path_slash}.deploy-running"
 
         if [ "${input_sync}" == "full" ]; then
-          ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
-            mirror --exclude-glob=.git*/ --max-errors=10 --reverse ${{inputs.ftp-mirror-options}} ${{inputs.local-path}} ${remote_path_unslash}
-            rm -f \"${remote_path_slash}.deploy-running\"
+          ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running;
+            mirror --exclude-glob=.git*/ --max-errors=10 --reverse ${{inputs.ftp-mirror-options}} ${local_path_unslash} ${remote_path_unslash};
+            rm -f \"${remote_path_slash}.deploy-running\";
             ${{inputs.ftp-post-sync-commands}}"
         else
-          ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running
-            mput -d -O \"${remote_path_unslash}\" .deploy-revision $(awk 'ORS=" " { print "\"" $0 "\"" }' ~/files_to_upload)
-            rm -f \"${remote_path_slash}.deploy-check\" $(awk -v REMOTEPATH=\"${remote_path_slash}\" 'ORS=" " { print "\"" REMOTEPATH $0 "\"" }' ~/files_to_delete)
-            rm -f \"${remote_path_slash}.deploy-running\"
+          ${proxy_cmd} lftp -c "lcd \"${local_path_unslash}\";
+            put -O \"${remote_path_unslash}\" .deploy-running;
+            mput -d -O \"${remote_path_unslash}\" .deploy-revision $(awk '{ printf "\"%s\" ", $0 }' ~/files_to_upload);
+            rm -f \"${remote_path_slash}.deploy-check\" $(awk -v REMOTEPATH=\"${remote_path_slash}\" '{ printf "\"%s%s\" ", REMOTEPATH, $0 }' ~/files_to_delete);
+            rm -f \"${remote_path_slash}.deploy-running\";
             ${{inputs.ftp-post-sync-commands}}"
         fi
 
