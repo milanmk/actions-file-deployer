@@ -23,7 +23,7 @@ This is a composite GitHub Action (Linux runner) for deploying repository conten
 
 ```yml
 - name: "Checkout"
-  uses: actions/checkout@v3
+  uses: actions/checkout@v4
   with:
     fetch-depth: 0
 - name: "Deploy"
@@ -61,7 +61,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: "Deploy"
