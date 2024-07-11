@@ -355,13 +355,13 @@ runs:
         touch "${local_path_slash}.deploy-running"
 
         if [ "${input_sync}" == "full" ]; then
-          ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" .deploy-running;
+          ${proxy_cmd} lftp -c "put -O \"${remote_path_unslash}\" \"${local_path_slash}.deploy-running\";
             mirror --exclude-glob=.git*/ --max-errors=10 --reverse ${{inputs.ftp-mirror-options}} ${local_path_unslash} ${remote_path_unslash};
             rm -f \"${remote_path_slash}.deploy-running\";
             ${{inputs.ftp-post-sync-commands}}"
         else
           ${proxy_cmd} lftp -c "lcd \"${local_path_unslash}\";
-            put -O \"${remote_path_unslash}\" .deploy-running;
+            put -O \"${remote_path_unslash}\" \"${local_path_slash}.deploy-running\";
             mput -d -O \"${remote_path_unslash}\" .deploy-revision $(awk '{ printf "\"%s\" ", $0 }' ~/files_to_upload);
             rm -f \"${remote_path_slash}.deploy-check\" $(awk -v REMOTEPATH=\"${remote_path_slash}\" '{ printf "\"%s%s\" ", REMOTEPATH, $0 }' ~/files_to_delete);
             rm -f \"${remote_path_slash}.deploy-running\";
