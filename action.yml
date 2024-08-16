@@ -326,15 +326,18 @@ runs:
             git diff --diff-filter=ACMRT --name-only ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ${{inputs.sync-delta-includes}} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload
             git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_delete
 
-            sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_upload
-            sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_delete
-
             # Assuming inputs.sync-delta-includes is a space-separated list of patterns
             echo "shishir "
             echo ${{inputs.sync-delta-includes}}
+            ${{inputs.sync-delta-includes}} >> ~/files_to_upload
             for pattern in ${{inputs.sync-delta-includes}}; do
                 find . -path "$pattern" -type f >> ~/files_to_upload
             done
+            
+            sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_upload
+            sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_delete
+
+            
 
             echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
             echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
