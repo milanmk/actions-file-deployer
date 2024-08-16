@@ -329,7 +329,7 @@ runs:
             # Assuming inputs.sync-delta-includes is a space-separated list of patterns
             echo "shishir "
             echo ${{inputs.sync-delta-includes}}
-            ${{inputs.sync-delta-includes}} >> ~/files_to_upload
+            # ${{inputs.sync-delta-includes}} >> ~/files_to_upload
             for pattern in ${{inputs.sync-delta-includes}}; do
                 find . -path "$pattern" -type f >> ~/files_to_upload
             done
