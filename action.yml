@@ -327,11 +327,8 @@ runs:
             git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_delete
 
             # Assuming inputs.sync-delta-includes is a space-separated list of patterns
-            echo "shishir "
-            echo ${{inputs.sync-delta-includes}}
             # ${{inputs.sync-delta-includes}} >> ~/files_to_upload
             for pattern in ${{inputs.sync-delta-includes}}; do
-              echo "shishir 123 "
               find "$pattern" -type f >> ~/files_to_upload
             done
             
