@@ -331,7 +331,7 @@ runs:
             echo ${{inputs.sync-delta-includes}}
             # ${{inputs.sync-delta-includes}} >> ~/files_to_upload
             for pattern in ${{inputs.sync-delta-includes}}; do
-                find . -path "$pattern" -type f >> ~/files_to_upload
+                find . -path "$pattern/**" -type f >> ~/files_to_upload
             done
             
             sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_upload
