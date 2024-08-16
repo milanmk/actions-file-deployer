@@ -64,6 +64,9 @@ inputs:
   sync-delta-excludes:
     description: "Files to exclude from delta sync"
     required: false
+  sync-delta-includes:
+    description: "Files to include into delta sync"
+    required: false
   ssh-options:
     description: "Additional command arguments for SSH client"
     required: false
@@ -320,7 +323,7 @@ runs:
           # show_hr
 
           if git cat-file -t ${git_previous_commit} &>/dev/null; then
-            git diff --diff-filter=ACMRT --name-only ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload
+            git diff --diff-filter=ACMRT --name-only ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ${{inputs.sync-delta-includes}} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload
             git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_delete
 
             sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_upload
