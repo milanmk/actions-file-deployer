@@ -323,7 +323,7 @@ runs:
           # show_hr
 
           if git cat-file -t ${git_previous_commit} &>/dev/null; then
-            git diff --diff-filter=ACMRT --name-only ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ${{inputs.sync-delta-includes}} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload
+            git diff --diff-filter=ACMRT --name-only ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload
             git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_delete
 
             # Assuming inputs.sync-delta-includes is a space-separated list of patterns
