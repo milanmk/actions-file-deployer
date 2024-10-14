@@ -64,6 +64,9 @@ inputs:
   sync-delta-excludes:
     description: "Files to exclude from delta sync"
     required: false
+  sync-delta-includes:
+    description: "Files to include into delta sync"
+    required: false
   ssh-options:
     description: "Additional command arguments for SSH client"
     required: false
@@ -323,8 +326,16 @@ runs:
             git diff --diff-filter=ACMRT --name-only ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload
             git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_delete
 
+            # Assuming inputs.sync-delta-includes is a space-separated list of patterns
+            # ${{inputs.sync-delta-includes}} >> ~/files_to_upload
+            for pattern in ${{inputs.sync-delta-includes}}; do
+              find "$pattern" -type f >> ~/files_to_upload
+            done
+            
             sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_upload
             sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_delete
+
+            
 
             echo "File created: ~/files_to_upload" && cat ~/files_to_upload && show_hr
             echo "File created: ~/files_to_delete" && cat ~/files_to_delete && show_hr
