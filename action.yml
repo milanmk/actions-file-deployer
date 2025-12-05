@@ -302,10 +302,10 @@ runs:
               git_previous_commit=${{github.event.before}}
             elif [ "${{github.event_name}}" == "pull_request" ]; then
               git_previous_commit=${{github.event.pull_request.base.sha}}
-            elif [ "${{github.event_name}}" == "workflow_dispatch" ]; then
+            elif [ "${{github.event_name}}" == "workflow_dispatch" ] || [ "${{github.event_name}}" == "schedule" ]; then
               git_previous_commit=$(git rev-parse ${{github.sha}}^)
             else
-              echo "::error::Event not supported for delta synchronization: ${{github.event_name}}. Supported events are 'push', 'pull_request' and 'workflow_dispatch'."
+              echo "::error::Event not supported for delta synchronization: ${{github.event_name}}. Supported events are 'push', 'pull_request', 'workflow_dispatch' and 'schedule'."
               exit 1
             fi
           else
