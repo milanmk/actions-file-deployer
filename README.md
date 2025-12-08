@@ -23,7 +23,7 @@ This is a composite GitHub Action (Linux runner) for deploying repository conten
 
 ```yml
 - name: "Checkout"
-  uses: actions/checkout@v4
+  uses: actions/checkout@v6
   with:
     fetch-depth: 0
 - name: "Deploy"
@@ -61,7 +61,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: "Deploy"
@@ -76,31 +76,32 @@ jobs:
 
 ## Inputs
 
-| Name                   | Required             | Default | Description                                   |
-|------------------------|----------------------|---------|-----------------------------------------------|
-| remote-protocol        | yes                  | sftp    | Remote file transfer protocol (ftp, sftp)     |
-| remote-host            | yes                  |         | Remote host                                   |
-| remote-port            | yes                  | 22      | Remote port                                   |
-| remote-user            | yes                  |         | FTP/SSH username                              |
-| remote-password        | no                   |         | FTP/SSH password                              |
-| ssh-private-key        | no                   |         | SSH private key of user                       |
-| proxy                  | yes                  | false   | Enable proxy for FTP connection (true, false) |
-| proxy-host             | yes (if proxy: true) |         | Proxy host                                    |
-| proxy-port             | yes (if proxy: true) | 22      | Proxy port                                    |
-| proxy-forwarding-port  | yes (if proxy: true) | 1080    | Proxy forwarding port                         |
-| proxy-user             | yes (if proxy: true) |         | Proxy username                                |
-| proxy-private-key      | yes (if proxy: true) |         | Proxy SSH private key of user                 |
-| local-path             | yes                  | .       | Local path to repository                      |
-| remote-path            | yes                  | .       | Remote path on host                           |
-| sync                   | yes                  | delta   | File synchronization (delta, full)            |
-| sync-delta-excludes    | no                   |         | Files to exclude from delta sync              |
-| ssh-options            | no                   |         | Additional arguments for SSH client           |
-| ftp-options            | no                   |         | Additional arguments for FTP client           |
-| ftp-mirror-options     | no                   |         | Additional arguments for mirroring            |
-| ftp-post-sync-commands | no                   |         | Additionnal FTP command to run after sync     |
-| webhook                | no                   |         | Send webhook event notifications              |
-| artifacts              | no                   | false   | Upload logs/files to artifacts (true, false)  |
-| debug                  | no                   | false   | Enable debug information (true, false)        |
+| Name                   | Required             | Default | Description                                    |
+|------------------------|----------------------|---------|------------------------------------------------|
+| remote-protocol        | yes                  | sftp    | Remote file transfer protocol (ftp, sftp)      |
+| remote-host            | yes                  |         | Remote host                                    |
+| remote-port            | yes                  | 22      | Remote port                                    |
+| remote-user            | yes                  |         | FTP/SSH username                               |
+| remote-password        | no                   |         | FTP/SSH password                               |
+| ssh-private-key        | no                   |         | SSH private key of user                        |
+| proxy                  | yes                  | false   | Enable proxy for FTP connection (true, false)  |
+| proxy-host             | yes (if proxy: true) |         | Proxy host                                     |
+| proxy-port             | yes (if proxy: true) | 22      | Proxy port                                     |
+| proxy-forwarding-port  | yes (if proxy: true) | 1080    | Proxy forwarding port                          |
+| proxy-user             | yes (if proxy: true) |         | Proxy username                                 |
+| proxy-private-key      | yes (if proxy: true) |         | Proxy SSH private key of user                  |
+| local-path             | yes                  | .       | Local path to repository                       |
+| remote-path            | yes                  | .       | Remote path on host                            |
+| sync                   | yes                  | delta   | File synchronization (delta, full)             |
+| sync-delta-excludes    | no                   |         | Files to exclude from delta sync               |
+| sync-delta-includes    | no                   |         | Additional files to include in delta sync (CSV)|
+| ssh-options            | no                   |         | Additional arguments for SSH client            |
+| ftp-options            | no                   |         | Additional arguments for FTP client            |
+| ftp-mirror-options     | no                   |         | Additional arguments for mirroring             |
+| ftp-post-sync-commands | no                   |         | Additionnal FTP command to run after sync      |
+| webhook                | no                   |         | Send webhook event notifications               |
+| artifacts              | no                   | false   | Upload logs/files to artifacts (true, false)   |
+| debug                  | no                   | false   | Enable debug information (true, false)         |
 
 ### Notes
 
@@ -115,6 +116,7 @@ jobs:
     - Does not delete files on remote host
     - Default glob exclude pattern is `.git*/`
 - `sync-delta-excludes` accepts [pathspec](https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddefpathspecapathspec) patterns to exclude files from delta sync.
+- `sync-delta-includes` accepts comma separated paths whose files you want to include in the delta sync. This is useful in cases where you want to include files from a previous build step or files from other branches.
 - For `ftp-options` and `ftp-mirror-options` command arguments please refer to [LFTP manual](https://lftp.yar.ru/lftp-man.html)
 - `ftp-post-sync-commands` can be used to run additional LFTP commands after the synchronization. For example, to upload a file watched by a process manager on the server in order to restart a deamon:
     ```

@@ -64,6 +64,9 @@ inputs:
   sync-delta-excludes:
     description: "Files to exclude from delta sync"
     required: false
+  sync-delta-includes:
+    description: "Additional files to include in delta sync"
+    required: false
   ssh-options:
     description: "Additional command arguments for SSH client"
     required: false
@@ -99,9 +102,12 @@ runs:
         }
 
         function send_webhook() {
-          local status="$1"
-          local post_data=$(jq --null-input \
-          --arg timestamp `date +%s` \
+          local status
+          local post_data
+
+          status="$1"
+          post_data=$(jq --null-input \
+          --arg timestamp "$(date +%s)" \
           --arg status "${status}" \
           --arg repository "${{ github.repository }}" \
           --arg workflow "${{ github.workflow }}" \
@@ -117,7 +123,7 @@ runs:
           curl --data "${post_data}" --header "Content-Type: application/json" --max-time 30 --show-error --silent --user-agent "GitHub Workflow" "${{inputs.webhook}}"
         }
 
-        [ "${{inputs.webhook}}" != "" ] && echo "Webhook notification (start): $(send_webhook "start")"
+        [ -n "${{inputs.webhook}}" ] && echo "Webhook notification (start): $(send_webhook "start")"
 
         echo "Check repository"
 
@@ -151,6 +157,8 @@ runs:
           input_sync=${{github.event.inputs.sync}}
         fi
 
+        input_sync_delta_includes=${{inputs.sync-delta-includes}}
+
         echo "Validate inputs"
 
         if [ "${{inputs.remote-protocol}}" != "sftp" ] && [ "${{inputs.remote-protocol}}" != "ftp" ]; then
@@ -183,7 +191,6 @@ runs:
 
         echo "::group::Install packages"
 
-        apt_install=""
         apt_quiet="--quiet --quiet"
         if [ "${{inputs.debug}}" == "true" ]; then
           apt_quiet=""
@@ -207,13 +214,13 @@ runs:
         [ "${{inputs.debug}}" == "true" ] && cat ${netrc}
         show_hr
 
-        if [ "${{inputs.remote-protocol}}" == "sftp" ] && [ "${{inputs.ssh-private-key}}" != "" ]; then
+        if [ "${{inputs.remote-protocol}}" == "sftp" ] && [ -n "${{inputs.ssh-private-key}}" ]; then
           key_ssh=~/ssh_private_key
           echo "${{inputs.ssh-private-key}}" > ${key_ssh} && chmod 600 ${key_ssh} && echo "File created: ${key_ssh}" && show_hr
         fi
 
         if [ "${input_proxy}" == "true" ]; then
-          if [ "${{inputs.proxy-private-key}}" != "" ]; then
+          if [ -n "${{inputs.proxy-private-key}}" ]; then
             key_proxy=~/proxy_private_key
             echo "${{inputs.proxy-private-key}}" > ${key_proxy} && chmod 600 ${key_proxy} && echo "File created: ${key_proxy}" && show_hr
 
@@ -250,7 +257,7 @@ runs:
         set ssl:verify-certificate false
         set xfer:parallel 3
         ${{inputs.ftp-options}}" > ~/.lftprc
-        if [ "${{inputs.remote-protocol}}" == "sftp" ] && [ "${{inputs.ssh-private-key}}" != "" ]; then
+        if [ "${{inputs.remote-protocol}}" == "sftp" ] && [ -n "${{inputs.ssh-private-key}}" ]; then
           echo "set sftp:connect-program /usr/bin/ssh -a -x -i ~/ssh_private_key ${{inputs.ssh-options}}" >> ~/.lftprc
         else
           echo "set sftp:connect-program /usr/bin/ssh -a -x ${{inputs.ssh-options}}" >> ~/.lftprc
@@ -266,7 +273,7 @@ runs:
         if [ "${input_proxy}" == "true" ]; then
           echo "::group::Setup proxy"
 
-          if [ "${{inputs.proxy-user}}" != "" ] && [ "${{inputs.proxy-host}}" != "" ]; then
+          if [ -n "${{inputs.proxy-user}}" ] && [ -n "${{inputs.proxy-host}}" ]; then
             if ssh -A -D ${{inputs.proxy-forwarding-port}} -f -N -p ${{inputs.proxy-port}} -i ~/proxy_private_key ${{inputs.proxy-user}}@${{inputs.proxy-host}}; then
               echo "Proxy connected" && show_hr && echo "Proxy IP address: $(${proxy_cmd} curl --max-time 10 --show-error --silent "http://checkip.amazonaws.com/")"
             else
@@ -322,6 +329,12 @@ runs:
           if git cat-file -t ${git_previous_commit} &>/dev/null; then
             git diff --diff-filter=ACMRT --name-only ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_upload
             git diff-tree --diff-filter=D --name-only -t ${git_previous_commit}..${{github.sha}} -- ${local_path_unslash} ':!/.git*' ${{inputs.sync-delta-excludes}} > ~/files_to_delete
+
+            if [ -n "${input_sync_delta_includes}" ]; then
+              for i in ${input_sync_delta_includes//,/ }; do
+                find "$i" -type f >> ~/files_to_upload
+              done
+            fi
 
             sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_upload
             sed --in-place --regexp-extended "s#(.*)#realpath --canonicalize-missing --relative-to=$local_path_unslash \1#e" ~/files_to_delete
@@ -382,7 +395,7 @@ runs:
 
         [ "${{inputs.artifacts}}" != "true" ] && rm --force --verbose ~/transfer_log.txt
 
-        [ "${{inputs.webhook}}" != "" ] && echo "Webhook notification (finish): $(send_webhook "finish")"
+        [ -n "${{inputs.webhook}}" ] && echo "Webhook notification (finish): $(send_webhook "finish")"
 
         echo "::endgroup::"
 
